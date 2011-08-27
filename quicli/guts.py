@@ -8,10 +8,17 @@ from argparse import FileType as _OriginalFileType
 class ParserAssembler(object):
     def __init__(self, func, *args, **kwargs):
         name = '__main__'
+        direct = False
+        if 'direct' in kwargs:
+            direct = kwargs['direct']
+            del kwargs['direct']
+        
         self.subparsers = None
         self.__update_func_metadata(func if func else _get_script_global(), kwargs)
         self.parser = self.__generate_parser(argparse.ArgumentParser, func, name, args, kwargs)
-        self.__add_func_args_to_parser(self.parser, func)
+        
+        if not direct:
+            self.__add_func_args_to_parser(self.parser, func)
         
         self.__parsers = {name: self.parser}
         
@@ -28,12 +35,12 @@ class ParserAssembler(object):
         # Parse arguments
         arguments = vars(self.parser.parse_args())
         parser_name = '__main__'
-        if '_cl_parser' in arguments:
-            parser_name = arguments['_cl_parser']
-            del arguments['_cl_parser']
+        if '_quicli_parser' in arguments:
+            parser_name = arguments['_quicli_parser']
+            del arguments['_quicli_parser']
         parser = self.parser if parser_name == '__main__' else self.subparsers.choices[parser_name]
-        instructions = parser._cl_instructions
-        func = parser._cl_func
+        instructions = parser._quicli_instructions
+        func = parser._quicli_func
     
         # Check arguments
         kwargs = {}
@@ -75,11 +82,16 @@ class ParserAssembler(object):
         
         go()
     
-    def add_argument(self, parser_name, argument_name, *args, **kwargs):
-        parser = self.parser if parser_name == self.parser._cl_name else self.subparsers.choices[parser_name]
-        if not hasattr(parser, '_cl_instructions'):
-            parser._cl_instructions = {}
-        parser._cl_instructions[argument_name] = self.__separate_instructions(kwargs)
+    def add_argument(self, argument_name, *args, **kwargs):
+        if 'parser_name' in kwargs:
+            parser_name = kwargs['parser_name']
+            del kwargs['parser_name']
+        else:
+            parser_name = '__main__'
+        parser = self.parser if parser_name == self.parser._quicli_name else self.subparsers.choices[parser_name]
+        if not hasattr(parser, '_quicli_instructions'):
+            parser._quicli_instructions = {}
+        parser._quicli_instructions[argument_name] = self.__separate_instructions(kwargs)
         if 'default' in kwargs:
             message = '(default: {0})'.format(repr(kwargs['default']))
             if 'help' in kwargs:
@@ -99,7 +111,7 @@ class ParserAssembler(object):
         # Create subparsers container
         if self.subparsers is None:
             title = 'available subcommands (type "{0} <subcommand> --help" for usage)'.format(self.parser.prog)
-            self.subparsers = self.parser.add_subparsers(title=title, dest='_cl_parser')
+            self.subparsers = self.parser.add_subparsers(title=title, dest='_quicli_parser')
             self.subparsers.choice = OrderedDict()
         
         # Make sure we have a name
@@ -118,33 +130,33 @@ class ParserAssembler(object):
         self.__add_func_args_to_parser(parser, func)
 
     @classmethod
-    def _assemble(cls, run_on_import=False, override_func=None):
+    def _assemble(cls, run_on_import=False, _override_func=None):
         main_parser = [None, ([], {})]
         subparsers = []
         __internal_frame__ = True  # Used to detect the calling script
         
         def get_parser(obj):
             if hasattr(obj, '__call__'):
-                if hasattr(obj, '_cl_subparser'):
-                    subparsers.append((obj, obj._cl_subparser))
-                if hasattr(obj, '_cl_parser'):
-                    main_parser[0:] = [obj, obj._cl_parser]
+                if hasattr(obj, '_quicli_subparser'):
+                    subparsers.append((obj, obj._quicli_subparser))
+                elif hasattr(obj, '_quicli_parser'):
+                    main_parser[0:] = [obj, obj._quicli_parser]
             
         scope = _get_script_global()
         
         for name in scope:
             get_parser(scope[name])
-        if override_func is not None:
-                get_parser(override_func)
+        if _override_func is not None:
+                get_parser(_override_func)
             
         func, (args, kwargs) = main_parser
         assembler = ParserAssembler(func, *args, **kwargs)
         if func is not None:
-            func._cl_assembler = assembler
+            func._quicli_assembler = assembler
         for func, (args, kwargs) in sorted(subparsers, key=lambda item: item[1][0][0] if item[1][0] else item[0].__name__):
             subparser = assembler.add_subparser(func, *args, **kwargs)
-            func._cl_subparser_obj = subparser
-            func._cl_assembler = assembler
+            func._quicli_subparser_obj = subparser
+            func._quicli_assembler = assembler
         assembler.run(run_on_import)
         
         return assembler
@@ -185,8 +197,8 @@ class ParserAssembler(object):
             arguments[arg] = (args, kwargs)
             
         # Override generalizations made from above cues with specifications
-        if hasattr(func, '_cl_arguments'):
-            for override_args, override_kwargs in func._cl_arguments:
+        if hasattr(func, '_quicli_arguments'):
+            for override_args, override_kwargs in func._quicli_arguments:
                 if override_args and override_args[0] in arguments:  # Check for a name match
                     original_name = override_args[0]
                     new_name = None
@@ -214,9 +226,10 @@ class ParserAssembler(object):
                         arguments[new_name] = arguments[original_name]
                         del arguments[original_name]
         
-        parser_name = parser._cl_name
+        parser_name = parser._quicli_name
         for name, (args, kwargs) in reversed(list(arguments.items())):
-            self.add_argument(parser_name, name, *args, **kwargs)
+            kwargs['parser_name'] = parser_name
+            self.add_argument(name, *args, **kwargs)
     
     def __separate_instructions(self, kwargs):
         instructions = {
@@ -246,8 +259,8 @@ class ParserAssembler(object):
     
     def __generate_parser(self, factory, func, name, args, kwargs):
         parser = factory(*args, **kwargs)
-        parser._cl_func = func
-        parser._cl_name = name
+        parser._quicli_func = func
+        parser._quicli_name = name
         
         return parser
 

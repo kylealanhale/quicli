@@ -11,5 +11,5 @@
 from .guts import *
 from .decorators import *
 
-__all__ = ('run', 'sub', 'argument', 'FileType', 'RestartProgram')
+__all__ = ('run', 'main', 'sub', 'argument', 'FileType', 'RestartProgram')
 __version__ = '1.0.0'

@@ -7,18 +7,23 @@ import imp
 
 from tests import TextInterceptor
 
+def get_scenario(name):
+    sys.path.append('.')
+    location = imp.find_module('scenarios')
+    scenario = imp.load_module('scenarios', *location)
+    location = imp.find_module(name, scenario.__path__)
+    scenario = imp.load_module(name, *location)
+    sys.path.pop()
+    
+    return scenario
+
 TEST_FUNCTION = None
 def scenario(func):
     name = func.__name__.split('_')[1]
     def wrapper(self, *args, **kwargs):
         global TEST_FUNCTION
         scope = {}
-        sys.path.append('.')
-        location = imp.find_module('scenarios')
-        scenario = imp.load_module('scenarios', *location)
-        location = imp.find_module(name, scenario.__path__)
-        scenario = imp.load_module(name, *location)
-        sys.path.pop()
+        scenario = get_scenario(name)
         TEST_FUNCTION = scenario.test_function
         return func(self, *args, **kwargs)
         
@@ -30,7 +35,7 @@ def run_test(command):
     sys.stderr = interceptor
     sys.stdout = interceptor
     try:
-        TEST_FUNCTION._cl_assembler.run(True)
+        TEST_FUNCTION._quicli_assembler.run(True)
     except SystemExit:
         pass
     except:
@@ -83,6 +88,16 @@ class SingleParserTestCase(unittest.TestCase):
         self.assertIn('arg1', results['positional'])
         
     @scenario
+    def test_runlater(self):
+        results = run_test('love')
+        self.assertEqual(len(results), 1)
+        
+    @scenario
+    def test_runlater_help(self):
+        results = run_test('--help')
+        self.assertIn('too few arguments', results[-1])
+        
+    @scenario
     def test_optional(self):
         results = run_test('arg1 --kwarg1=thing')
         self.assertEqual(len(results), 0)
@@ -110,8 +125,7 @@ class SingleParserTestCase(unittest.TestCase):
     def test_modify_help(self):
         results = parse_arguments(run_test('--help'))
         self.assertIsNone(results['help'])
-        self.assertIn('first argument', results['positional'])
-        self.assertIn('second_arg', results['positional'])
+        self.assertIn('first argumentsecond_arg', results['positional'])  # Make sure the help is being displayed in the correct order
         self.assertIn('(default: False)', results['optional'])
         self.assertIn('-r KWARG2', results['optional'])
         
@@ -121,6 +135,9 @@ class SingleParserTestCase(unittest.TestCase):
         self.assertEqual(len(results), 0)
         
         results = run_test('crazy -k __init__.py')
+        self.assertEqual(len(results), 0)
+        
+        results = run_test('crazy --file=__init__.py --convert_to_int=3')
         self.assertEqual(len(results), 0)
         
     @scenario
@@ -135,6 +152,30 @@ class SingleParserTestCase(unittest.TestCase):
         results = run_test('initial')
         self.assertEqual(len(results), 2)
         self.assertIn('restarted', results)
+        
+    def test_direct(self):
+        global TEST_FUNCTION
+        scenario = get_scenario('direct')
+        scenario.test_function._quicli_assembler = scenario.assembler
+        TEST_FUNCTION = scenario.test_function
+        results = run_test('1 2 -t1 -r2')
+        self.assertEqual(len(results), 0)
+        
+    def test_direct_help(self):
+        global TEST_FUNCTION
+        scenario = get_scenario('direct')
+        scenario.test_function._quicli_assembler = scenario.assembler
+        TEST_FUNCTION = scenario.test_function
+        results = parse_arguments(run_test('--help'))
+        self.assertIn('arg1second_arg', results['positional'])  # Make sure the help is being displayed in the correct order
+        
+    def test_badargument1(self):
+        with self.assertRaises(TypeError):
+            get_scenario('badargument1')
+
+    def test_badargument2(self):
+        with self.assertRaises(TypeError):
+            get_scenario('badargument2')
 
 class SubParserTestCase(unittest.TestCase):
     @scenario
