@@ -1,10 +1,34 @@
 import sys
+from datetime import datetime
+import time
+import threading
 
-class PercentageProgress(object):
-    template = '{0:0.0%}'
+class ProgressBase(object):
+    def __init__(self):
+        self.__last_text = ''
     
-    def __init__(self, total):
+    def write(self, text):
+        text = str(text)
+        if text == self.__last_text:
+            return
+        
+        last_length = len(self.__last_text)
+        current_length = len(text)
+        if last_length > current_length:
+            text += ' ' * (last_length - current_length)
+        backup = chr(8) * last_length
+        sys.stdout.write('{}{}'.format(backup, text))
+        
+        self.__last_text = text        
+        
+class PercentageProgress(ProgressBase):
+    template = '{:0.0%}'
+    
+    def __init__(self, total, template=None):
+        super(PercentageProgress, self).__init__()
         self.total = total
+        if template is not None:
+            self.template = template
         self.current = 0
         self.last_message = ''
         
@@ -20,15 +44,38 @@ class PercentageProgress(object):
             progress = float(self.current) / float(self.total)
         args = [progress]
         kwargs = {'progress': progress, 'context': context}
-        message = self.template.format(*args, **kwargs)
-        if message == self.last_message:
-            return
         
-        last_length = len(self.last_message)
-        current_length = len(message)
-        if last_length > current_length:
-            message += ' ' * (last_length - current_length)
-        backup = chr(8) * last_length
-        sys.stdout.write('{0}{1}'.format(backup, message))
+        self.write(self.template.format(*args, **kwargs))
+
+class TimeProgress(ProgressBase):
+    template = '{days} {seconds}.{microseconds}'
+    
+    def __init__(self, template=None, resolution='seconds', period=1):
+        super(TimeProgress, self).__init__()
+        if template is not None:
+            self.template = template
+        self.resolution = resolution
+        self.period = period
+        self.running = False
+            
+    def start(self):
+        self.start = datetime.now()
+        self.running = True
+        def go():
+            try:
+                while self.running:
+                    self.update()
+                    time.sleep(self.period)
+            except:
+                self.running = False
+                raise
+        thread = threading.Thread(target=go)
+        thread.start()
+    
+    def update(self):
+        delta = datetime.now() - self.start
+        pieces = dict([(piece, getattr(delta, piece)) for piece in ('days', 'seconds', 'microseconds')])
+        self.write(self.template.format(**pieces))
         
-        self.last_message = message
+    def stop(self):
+        self.running = False
