@@ -43,11 +43,11 @@ ON_WINDOWS = sys.platform == 'win32'
 if ON_WINDOWS:
     # http://code.activestate.com/recipes/440694-determine-size-of-console-window-on-windows/
     from ctypes import windll, create_string_buffer
-    import encodings.aliases
+    
     # stdin handle is -10
     # stdout handle is -11
     # stderr handle is -12
-    encodings.aliases.aliases['cp65001'] = 'utf_8'
+    
     def _get_dimensions():
         h = windll.kernel32.GetStdHandle(-12)
         csbi = create_string_buffer(22)
