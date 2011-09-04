@@ -83,12 +83,27 @@ class ParserAssembler(object):
         go()
     
     def add_argument(self, argument_name, *args, **kwargs):
+        original_name = argument_name
+        
+        # Look for argument renames
+        for arg in args:
+            if arg.startswith('--'):
+                argument_name = arg[2:]
+            elif not arg.startswith('-'):
+                argument_name = arg
+            
+        if original_name != argument_name:
+            kwargs['original_name'] = original_name
+        
+        # Find parser
         if 'parser_name' in kwargs:
             parser_name = kwargs['parser_name']
             del kwargs['parser_name']
         else:
             parser_name = '__main__'
         parser = self.parser if parser_name == self.parser._quicli_name else self.subparsers.choices[parser_name]
+        
+        # Get instructions
         if not hasattr(parser, '_quicli_instructions'):
             parser._quicli_instructions = {}
         parser._quicli_instructions[argument_name] = self.__separate_instructions(kwargs)
@@ -104,6 +119,8 @@ class ParserAssembler(object):
                 if not hasattr(kwargs['test'], '__iter__'):
                     kwargs['test'] = [kwargs['test']]
                 kwargs['test'].append(lambda x: x is not None)
+                
+        # Add the argument to the parser
         parser.add_argument(*args, **kwargs)
     
     def add_subparser(self, func, *args, **kwargs):
@@ -180,54 +197,50 @@ class ParserAssembler(object):
         current.update(metadata)
     
     def __add_func_args_to_parser(self, parser, func):
+        '''Parses function defaults and overrides with internal instructions given by the decorators'''
+        
         if func is None:
             return
-        arguments = OrderedDict()
+        arguments = {}
         argspecs = inspect.getargspec(func)
         defaults = list(argspecs.defaults) if argspecs.defaults is not None else []
         
         # Get argument cues from function signature
+        argument_order = []
         for arg in reversed(argspecs.args):
+            argument_order[0:0] = [arg]
             optional = False
             if defaults:
                 default = defaults.pop()
                 optional = True
             args = ['--' + arg, '-' + arg[0]] if optional else [arg]
             kwargs = {'default': default} if optional and default is not None else {}
-            arguments[arg] = (args, kwargs)
+            arguments[arg] = (args, kwargs)            
             
         # Override generalizations made from above cues with specifications
         if hasattr(func, '_quicli_arguments'):
             for override_args, override_kwargs in func._quicli_arguments:
-                if override_args and override_args[0] in arguments:  # Check for a name match
-                    original_name = override_args[0]
-                    new_name = None
-                    args, kwargs = arguments[original_name]  # Get original cues
+                argument_name = override_args[0]
+                if override_args and argument_name in arguments:  # Check for a name match
+                    args, kwargs = arguments[argument_name]  # Get original cues
                     override_args = override_args[1:]  # Trim off matcher name
+                    
                     for index in range(len(args)):  # Iterate through all cue arguments
                         arg = args[index]
                         for override_arg in override_args:
                             if arg.startswith('--'):
                                 if override_arg.startswith('--'):
-                                    new_name = override_arg[2:]
                                     args[index] = override_arg
                             elif arg.startswith('-'):
                                 if override_arg.startswith('-') and not override_arg.startswith('--'):
                                     args[index] = override_arg
                             else:
-                                new_name = override_arg
                                 args[:] = [override_arg]
-                        if new_name is not None and not arg.startswith('-') or arg.startswith('--'):
-                            # Store original name for later reference
-                            override_kwargs['original_name'] = arg[2:] if arg.startswith('--') else arg
                     kwargs.update(override_kwargs)
-                    if new_name is not None:
-                        # Store as new name so that it will resolve properly later
-                        arguments[new_name] = arguments[original_name]
-                        del arguments[original_name]
         
         parser_name = parser._quicli_name
-        for name, (args, kwargs) in reversed(list(arguments.items())):
+        for name in argument_order:
+            args, kwargs = arguments[name]
             kwargs['parser_name'] = parser_name
             self.add_argument(name, *args, **kwargs)
     

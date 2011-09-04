@@ -155,11 +155,14 @@ class SingleParserTestCase(unittest.TestCase):
         self.assertIn('restarted', results)
         
     def test_direct(self):
+        '''A directly-instantiated version of test_modify'''
+        
         global TEST_FUNCTION
+        
         scenario = get_scenario('direct')
         scenario.test_function._quicli_assembler = scenario.assembler
         TEST_FUNCTION = scenario.test_function
-        results = run_test('1 2 -t1 -r2')
+        results = run_test('arg1 arg2 --thing -r kwarg2')
         self.assertEqual(len(results), 0)
         
     def test_direct_help(self):
