@@ -34,6 +34,7 @@ def run_test(command):
     interceptor = TextInterceptor()
     sys.stderr = interceptor
     sys.stdout = interceptor
+    
     try:
         TEST_FUNCTION._quicli_assembler.run(True)
     except SystemExit:

@@ -75,7 +75,7 @@ def argument(*args, **kwargs):
     plus the validation parameters "test" and "error".
     '''
     
-    if not args or (len(args) and not isinstance(args[0], basestring)):
+    if not args or (len(args) and not isinstance(args[0], str)):
         raise TypeError('the @argument decorator requires its first argument to be the name of an argument of the wrapped function')
     
     def wrapper(func):

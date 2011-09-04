@@ -20,6 +20,8 @@ class TextInterceptor(object):
         self.cache = ''
     def write(self, text):
         self.cache += text
+    def flush(self, *args, **kwargs):
+        pass
 
 def mark(message='mark'):
     frame = inspect.currentframe().f_back
