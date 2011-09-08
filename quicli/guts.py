@@ -108,7 +108,7 @@ class ParserAssembler(object):
             parser._quicli_instructions = {}
         parser._quicli_instructions[argument_name] = self.__separate_instructions(kwargs)
         if 'default' in kwargs:
-            message = '(default: {0})'.format(repr(kwargs['default']))
+            message = '(default: {0})'.format(str(kwargs['default']))
             if 'help' in kwargs:
                 kwargs['help'] += os.linesep + message
             else:
@@ -277,11 +277,33 @@ class ParserAssembler(object):
         
         return parser
 
+class _file_wrapper(file):
+    def __init__(self, filename, *args, **kwargs):
+        self.did_exist = os.path.exists(filename)
+        super(_file_wrapper, self).__init__(filename, *args, **kwargs)
+
+# Taken from the original argparse.FileType
 class FileType(_OriginalFileType):
-    def __call__(self, *args, **kwargs):
+    def __call__(self, string):
         try:
-            return super(FileType, self).__call__(*args, **kwargs)
-        except:
+            # the special argument "-" means sys.std{in,out}
+            if string == '-':
+                if 'r' in self._mode:
+                    return _sys.stdin
+                elif 'w' in self._mode:
+                    return _sys.stdout
+                else:
+                    msg = _('argument "-" with mode %r' % self._mode)
+                    raise ValueError(msg)
+    
+            # all other arguments are used as file names
+            if self._bufsize:
+                wrapped = _file_wrapper(string, self._mode, self._bufsize)
+            else:
+                wrapped = _file_wrapper(string, self._mode)
+                
+            return wrapped
+        except Exception as e:
             return None
 
 class RestartProgram(Exception):

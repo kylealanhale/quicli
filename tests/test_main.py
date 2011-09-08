@@ -146,7 +146,7 @@ class SingleParserTestCase(unittest.TestCase):
         results = parse_arguments(run_test('--help'))
         self.assertIsNone(results['help'])
         self.assertIn('--file FILE, -k FILE', results['optional'])
-        self.assertIn("(default: './test.txt')", results['optional'])
+        self.assertIn("(default: ./test.txt)", results['optional'])
 
     @scenario
     def test_restart(self):
@@ -180,6 +180,28 @@ class SingleParserTestCase(unittest.TestCase):
     def test_badargument2(self):
         with self.assertRaises(TypeError):
             get_scenario('badargument2')
+    
+    @scenario
+    def test_filechecks(self):
+        filename = './__test.txt'
+        if os.path.exists(filename):
+            os.remove(filename)
+        
+        # Open
+        results = run_test(filename)
+        self.assertEqual(len(results), 0)
+        
+        # Write
+        with open(filename, 'r') as results:
+            self.assertEqual("This test was a success!", results.read())
+        
+        # Open again
+        results = run_test(filename)
+        self.assertEqual(len(results), 2)
+        
+        # Cleanup
+        os.remove(filename)
+        
 
 class SubParserTestCase(unittest.TestCase):
     @scenario

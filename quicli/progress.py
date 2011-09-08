@@ -156,7 +156,7 @@ class BarProgress(ProgressBase):
     def __init__(self, total=1):
         super(BarProgress, self).__init__()
         
-        self.parts = [unichr(code) for code in ((0x2588, 0x2588) if ON_WINDOWS else reversed(range(0x2588, 0x258f)))]
+        self.parts = [unichr(code) for code in ((0x258c, 0x2588) if ON_WINDOWS else reversed(range(0x2588, 0x258f + 1)))]
         
         self.total = max(total, 1)
         self.current = 0

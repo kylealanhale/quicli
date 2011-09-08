@@ -13,11 +13,11 @@ setup (
     version=quicli.__version__,
     description='quicli: write command line interfaces quickly',
     long_description='''
-    A wrapper around Python's argparse module.  Provides argparse
-    functionality in a simpler, easier-to-use interface, driven by function
-    metadata and decorators, with data validation.
-    
-    For usage, visit http://dev.kylealanhale.com/wiki/projects/quicli
+        A wrapper around Python's argparse module.  Provides argparse
+        functionality in a simpler, easier-to-use interface, driven by function
+        metadata and decorators, with data validation.
+        
+        For usage, visit http://dev.kylealanhale.com/wiki/projects/quicli
     ''',
     author='Kyle Alan Hale',
     author_email='kylealanhale@gmail.com',
