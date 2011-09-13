@@ -52,6 +52,8 @@ class ParserAssembler(object):
                 for test in suite:
                     passed = passed and test(value)
             return passed
+        
+        opened_files = []
         for name, value in arguments.items():
             if name not in instructions:
                 continue
@@ -61,6 +63,11 @@ class ParserAssembler(object):
                 original_value = value
                 if 'type' in instructions[name]:
                     value = instructions[name]['type'](value)
+                
+                # Keep track of opened files so that we can make sure they are all closed later
+                if isinstance(value, _file_wrapper):
+                    opened_files.append(value)
+                
                 if 'test' in instructions[name]:
                     passed = test(value, instructions[name]['test'])
             except:
@@ -81,6 +88,10 @@ class ParserAssembler(object):
                 go()
         
         go()
+        
+        for file in opened_files:
+            if not file.closed:
+                file.close()
     
     def add_argument(self, argument_name, *args, **kwargs):
         original_name = argument_name
@@ -277,34 +288,33 @@ class ParserAssembler(object):
         
         return parser
 
-class _file_wrapper(file):
-    def __init__(self, filename, *args, **kwargs):
-        self.did_exist = os.path.exists(filename)
-        super(_file_wrapper, self).__init__(filename, *args, **kwargs)
+class _file_wrapper(object):
+    wrapped = None
+    did_exist = False
+    
+    def __init__(self, wrapped, did_exist=None):
+        self.__dict__['wrapped'] = wrapped
+        if did_exist is not None:
+            self.__dict__['did_exist'] = did_exist
+    
+    def __getattr__(self, name):
+        return getattr(self.wrapped, name)
+    def __setattr__(self, name, value):
+        setattr(self.wrapped, name, value)
+    def __delattr__(self, name):
+        delattr(self.wrapped, name)
 
 # Taken from the original argparse.FileType
 class FileType(_OriginalFileType):
-    def __call__(self, string):
+    def __call__(self, filename):
+        did_exist = os.path.exists(filename)
         try:
-            # the special argument "-" means sys.std{in,out}
-            if string == '-':
-                if 'r' in self._mode:
-                    return _sys.stdin
-                elif 'w' in self._mode:
-                    return _sys.stdout
-                else:
-                    msg = _('argument "-" with mode %r' % self._mode)
-                    raise ValueError(msg)
-    
-            # all other arguments are used as file names
-            if self._bufsize:
-                wrapped = _file_wrapper(string, self._mode, self._bufsize)
-            else:
-                wrapped = _file_wrapper(string, self._mode)
-                
-            return wrapped
+            file_object = super(FileType, self).__call__(filename)
+            wrapped = _file_wrapper(file_object, did_exist)
         except Exception as e:
-            return None
+            wrapped = None
+            
+        return wrapped
 
 class RestartProgram(Exception):
     def __init__(self, **kwargs):
