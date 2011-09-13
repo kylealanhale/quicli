@@ -6,4 +6,3 @@ from quicli import *
 @argument('some_file', type=FileType('a'), test=lambda file: not file.did_exist)
 def test_function(some_file):
     some_file.write('This test was a success!')
-    some_file.flush()
