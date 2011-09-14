@@ -304,7 +304,6 @@ class _file_wrapper(object):
     def __delattr__(self, name):
         delattr(self.wrapped, name)
 
-# Taken from the original argparse.FileType
 class FileType(_OriginalFileType):
     def __call__(self, filename):
         did_exist = os.path.exists(filename)
